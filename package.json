@@ -1,0 +1,16 @@
+{
+  "name": "robo-loterias-caixa",
+  "version": "1.0.0",
+  "description": "Automação para preenchimento de jogos na Mega Sena",
+  "main": "bot-loterias.js",
+  "scripts": {
+    "start": "node bot-loterias.js"
+  },
+  "dependencies": {
+    "playwright": "^1.40.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.57.0",
+    "@types/node": "^25.0.3"
+  }
+}
