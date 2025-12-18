@@ -25,5 +25,3 @@ node bot-loterias.js
 
 6. Finalize a compra manualmente e boa sorte!!
 
-**Dica do Papito:** O site da Caixa às vezes muda os IDs dos botões. Se o robô travar logo no início, pode ser que o seletor `li >> text="01"` tenha mudado. Se isso rolar, me avisa que a gente ajusta o "alvo"!
-
