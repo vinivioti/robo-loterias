@@ -17,7 +17,7 @@ Automação em Node.js usando Playwright para preencher jogos da Mega Sena.
 2. No arquivo bot-loterias.js, Altere os números desejado no array para os seus números
 3. No terminal, execute:
    ```bash
-   t-loterias.js
+   node bot-loterias.js
 
 
 4. O navegador vai abrir. Quando chegar na parte do código/senha, faça manualmente.
