@@ -82,7 +82,7 @@ async function iniciarBot() {
 
         await page.waitForSelector('#n01', { timeout: 60000 });
 
-        // --- NOVA ESTRATÉGIA: R$ 1.750,00 ---
+        // --- Quantidade de Jogos de 7 e 6 dezenas---
         const listaDeJogos = [
             ...gerarListaDeJogosEstrategicos(7, 1), // 1 jogo de 7 dezenas
             ...gerarListaDeJogosEstrategicos(6, 1)  // 1 Jogo de 6 dezenas
@@ -93,7 +93,7 @@ async function iniciarBot() {
         for (let i = 0; i < listaDeJogos.length; i++) {
             // VERIFICAÇÃO DE PAUSA (A cada 15 jogos)
             if (i > 0 && i % 15 === 0) {
-                console.log("\n⚠️ PAUSA ESTRATÉGICA: 15 jogos foram adicionados.");
+                console.log("\n⚠️ PAUSA ESTRATÉGICA: 15 jogos foram adicionados, verifique se atingiu o valor limite de R$945,00 antes de continuar .");
                 let confirmacao = "";
                 while(confirmacao.toLowerCase() !== "ok") {
                     confirmacao = await perguntar("👉 Digite 'ok' para continuar os próximos 15 jogos: ");
