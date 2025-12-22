@@ -7,7 +7,8 @@
     "start": "node bot-loterias.js"
   },
   "dependencies": {
-    "playwright": "^1.40.0"
+    "axios": "^1.13.2",
+    "playwright": "^1.57.0"
   },
   "devDependencies": {
     "@playwright/test": "^1.57.0",
