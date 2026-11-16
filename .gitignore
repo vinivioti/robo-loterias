@@ -9,3 +9,10 @@ node_modules/
 caixa_state/
 *.log
 .DS_Store
+
+# Dados sensíveis — NUNCA commitar
+.env
+
+# Dados gerados pelo analisador (opcionais no git)
+historico_recente.json
+scores.json

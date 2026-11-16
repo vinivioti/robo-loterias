@@ -1,15 +1,53 @@
+// bot-loterias-estatistico.js — VERSÃO MELHORADA
+// ============================================================
+// Bot de automação para preenchimento de jogos na Mega-Sena
+// Usa o gerador-estrategico.js para criar jogos inteligentes
+// ============================================================
+
 const { chromium } = require('playwright');
-const path = require('path');
-const fs = require('fs');
-const readline = require('readline'); // Para conversar com você
+const path         = require('path');
+const readline     = require('readline');
+const {
+    gerarListaDeJogosEstrategicos,
+    imprimirRankingScores,
+} = require('./gerador-estrategico');
 
-// CONFIGURAÇÕES
-const CPF = '000.000.000-00'; //<-- COLOQUE SEU CPF AQUI 
+// ============================================================
+// ⚙️  CONFIGURAÇÕES
+// ============================================================
+
+// CPF: lido da variável de ambiente CPF ou de .env
+// Para usar: CPF=123.456.789-00 node bot-loterias-estatistico.js
+// Ou crie um arquivo .env com: CPF=123.456.789-00  (ver .env.example)
+const CPF       = process.env.CPF || '000.000.000-00'; // <-- ou edite aqui
 const STATE_DIR = path.resolve(__dirname, 'caixa_state');
-const FREQUENCIA_FILE = path.resolve(__dirname, 'frequencia.json');
-const MEUS_NUMEROS = Array.from({length: 60}, (_, i) => i + 1);
 
-// Função para fazer a pergunta no terminal
+// ── Configuração dos jogos ─────────────────────────────────
+//
+// modo: 'ponderado' → gera jogos por roleta ponderada (ideal para poucos jogos)
+//       'wheeling'  → gera TODAS combinações dos top-10 números (máxima cobertura)
+//
+// ESTRATÉGIA RECOMENDADA (custo moderado):
+//   1 jogo de 7 dezenas (ponderado)  — ~R$ 105
+//   1 jogo de 6 dezenas (ponderado)  — ~R$ 5
+//
+// ESTRATÉGIA DE COBERTURA TOTAL (wheeling):
+//   C(10,6) = 210 jogos a R$5 ≈ R$1.050
+//   GARANTIA: se 6 dos seus top-10 saírem, você ACERTA A SENA.
+//
+const CONFIG_JOGOS = [
+    { dezenas: 7, qtd: 1, modo: 'ponderado' },  // 1 jogo de 7 dezenas
+    { dezenas: 6, qtd: 1, modo: 'ponderado' },  // 1 jogo de 6 dezenas
+    // { dezenas: 6, qtd: 10, modo: 'wheeling' }, // descomente para wheeling
+];
+
+// Pausa a cada N jogos (limite de R$945 do site)
+const PAUSA_A_CADA = 15;
+
+// ============================================================
+// UTILIDADES
+// ============================================================
+
 function perguntar(texto) {
     const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
     return new Promise(resolve => rl.question(texto, resposta => {
@@ -18,53 +56,68 @@ function perguntar(texto) {
     }));
 }
 
-function gerarListaDeJogosEstrategicos(dezenas, qtd) {
-    const listaFinal = [];
-    const jogosSet = new Set();
-    let urnaVirtual = [];
-
-    if (fs.existsSync(FREQUENCIA_FILE)) {
-        const pesos = JSON.parse(fs.readFileSync(FREQUENCIA_FILE, 'utf-8'));
-        for (const [num, freq] of Object.entries(pesos)) {
-            for (let i = 0; i < freq; i++) urnaVirtual.push(parseInt(num));
-        }
-    } else {
-        urnaVirtual = [...MEUS_NUMEROS];
-    }
-
-    while (listaFinal.length < qtd) {
-        let sorteio = [];
-        while (sorteio.length < dezenas) {
-            const index = Math.floor(Math.random() * urnaVirtual.length);
-            const numSorteado = urnaVirtual[index];
-            if (!sorteio.includes(numSorteado)) sorteio.push(numSorteado);
-        }
-        sorteio.sort((a, b) => a - b);
-        const assinatura = sorteio.join('-');
-        if (!jogosSet.has(assinatura)) {
-            jogosSet.add(assinatura);
-            listaFinal.push(sorteio);
-        }
-    }
-    return listaFinal;
+function exibirResumoJogos(listaDeJogos) {
+    const totalSoma  = listaDeJogos.reduce((acc, j) => acc + j.reduce((a, b) => a + b, 0), 0);
+    const somaMedia  = (totalSoma / listaDeJogos.length).toFixed(1);
+    console.log(`\n📋 RESUMO DOS JOGOS GERADOS:`);
+    console.log(`   Total de jogos  : ${listaDeJogos.length}`);
+    console.log(`   Soma média      : ${somaMedia} (ideal: 100–200)`);
+    listaDeJogos.forEach((j, i) => {
+        const soma   = j.reduce((a, b) => a + b, 0);
+        const pares  = j.filter(n => n % 2 === 0).length;
+        console.log(`   Jogo ${String(i + 1).padStart(2)}: [${j.join(', ')}]  soma=${soma}  par/ímpar=${pares}/${j.length - pares}`);
+    });
+    console.log('');
 }
 
+// ============================================================
+// BOT PRINCIPAL
+// ============================================================
+
 async function iniciarBot() {
+    console.log('╔══════════════════════════════════════════════╗');
+    console.log('║   🤖 BOT MEGA-SENA — Versão Estratégica       ║');
+    console.log('╚══════════════════════════════════════════════╝\n');
+
+    // ── Exibe ranking antes de jogar ───────────────────────
+    imprimirRankingScores(10);
+
+    // ── Gera todos os jogos configurados ───────────────────
+    console.log('🎲 Gerando jogos estratégicos...');
+    const listaDeJogos = [];
+
+    for (const config of CONFIG_JOGOS) {
+        const jogos = gerarListaDeJogosEstrategicos(config.dezenas, config.qtd, config.modo);
+        listaDeJogos.push(...jogos);
+        console.log(`   ✅ ${jogos.length}x jogo(s) de ${config.dezenas} dezenas [${config.modo}] gerados.`);
+    }
+
+    if (listaDeJogos.length === 0) {
+        console.error('❌ Nenhum jogo foi gerado. Verifique os arquivos de dados.');
+        return;
+    }
+
+    exibirResumoJogos(listaDeJogos);
+
+    // ── Abre o navegador ───────────────────────────────────
+    console.log('🌐 Iniciando navegador...');
     const context = await chromium.launchPersistentContext(STATE_DIR, {
         headless: false,
-        locale: 'pt-BR',
-        viewport: { width: 1280, height: 900 }
+        locale:   'pt-BR',
+        viewport: { width: 1280, height: 900 },
     });
-    
+
     const page = await context.newPage();
 
     try {
-        console.log("🌐 Acessando Loterias Online...");
+        console.log('🌐 Acessando Loterias Online...');
         await page.goto('https://www.loteriasonline.caixa.gov.br/', { waitUntil: 'commit' });
 
+        // Aceita cookies / alertas
         await page.getByRole('button', { name: /aceitar/i }).click({ timeout: 3000 }).catch(() => {});
         await page.locator('#botaosim').click().catch(() => {});
-        
+
+        // ── Login (se necessário) ──────────────────────────
         const btnLogin = page.locator('#btnLogin');
         if (await btnLogin.isVisible()) {
             await btnLogin.click();
@@ -72,69 +125,69 @@ async function iniciarBot() {
             await page.fill('#username', CPF);
             await page.click('#button-submit');
             await page.getByRole('button', { name: 'Receber código' }).click();
-            console.log("📩 Aguardando login manual...");
+            console.log('📩 Aguardando login manual (verifique o e-mail/SMS)...');
         }
 
-
+        // ── Navega até Mega da Virada ──────────────────────
         const linkMegaVirada = page.getByRole('link', { name: 'Mega da Virada' });
         await linkMegaVirada.waitFor({ state: 'visible', timeout: 0 });
         await linkMegaVirada.click();
 
         await page.waitForSelector('#n01', { timeout: 60000 });
+        console.log(`\n📋 Iniciando preenchimento de ${listaDeJogos.length} jogo(s)...\n`);
 
-        // --- Quantidade de Jogos de 7 e 6 dezenas---
-        const listaDeJogos = [
-            ...gerarListaDeJogosEstrategicos(7, 1), // 1 jogo de 7 dezenas
-            ...gerarListaDeJogosEstrategicos(6, 1)  // 1 Jogo de 6 dezenas
-        ];
-
-        console.log(`📋 Iniciando processamento de ${listaDeJogos.length} jogos...`);
-
+        // ── Preenche os jogos no volante ───────────────────
         for (let i = 0; i < listaDeJogos.length; i++) {
-            // VERIFICAÇÃO DE PAUSA (A cada 15 jogos)
-            if (i > 0 && i % 15 === 0) {
-                console.log("\n⚠️ PAUSA ESTRATÉGICA: 15 jogos foram adicionados, verifique se atingiu o valor limite de R$945,00 antes de continuar .");
-                let confirmacao = "";
-                while(confirmacao.toLowerCase() !== "ok") {
-                    confirmacao = await perguntar("👉 Digite 'ok' para continuar os próximos 15 jogos: ");
+
+            // Pausa estratégica a cada PAUSA_A_CADA jogos (limite do site)
+            if (i > 0 && i % PAUSA_A_CADA === 0) {
+                console.log(`\n⚠️  PAUSA: ${PAUSA_A_CADA} jogos adicionados. Verifique o valor do carrinho antes de continuar.`);
+                let confirmacao = '';
+                while (confirmacao.toLowerCase() !== 'ok') {
+                    confirmacao = await perguntar("👉 Digite 'ok' para continuar: ");
                 }
-                console.log("🚀 Continuando...\n");
+                console.log('🚀 Continuando...\n');
             }
 
             const jogo = listaDeJogos[i];
-            console.log(`🎰 Jogo ${i + 1}/${listaDeJogos.length} (${jogo.length} dezenas): [${jogo.join(', ')}]`);
+            const soma  = jogo.reduce((a, b) => a + b, 0);
+            const pares = jogo.filter(n => n % 2 === 0).length;
+            console.log(`🎰 Jogo ${i + 1}/${listaDeJogos.length} (${jogo.length} dezenas) | soma=${soma} | p/i=${pares}/${jogo.length - pares} | [${jogo.join(', ')}]`);
 
-            // Garantir que o volante está limpo (opcional, mas seguro)
+            // Limpa o volante
             const btnLimpar = page.locator('#limpar-volante');
             if (await btnLimpar.isVisible()) await btnLimpar.click();
 
+            // Se o jogo tiver mais de 6 dezenas, aumenta o contador
             if (jogo.length > 6) {
-                await page.locator('#aumentarnumero').click();
-                await page.waitForTimeout(1000); 
+                const extra = jogo.length - 6;
+                for (let e = 0; e < extra; e++) {
+                    await page.locator('#aumentarnumero').click();
+                    await page.waitForTimeout(500);
+                }
             }
 
+            // Clica em cada número do jogo
             for (const num of jogo) {
                 const numFormatado = num.toString().padStart(2, '0');
-                const seletorId = `#n${numFormatado}`;
-
-               // Clica no ID do número (ex: #n05)
-                await page.locator(seletorId).click();
+                await page.locator(`#n${numFormatado}`).click();
             }
 
-            await page.waitForTimeout(2000)
-            // Adicionar ao carrinho
-           // await page.locator('#colocar-no-carrinho').click();
-            await page.getByRole('button', { name: ' Colocar no Carrinho' }).click();
-            console.log("✅ Jogo adicionado ao carrinho.");
+            await page.waitForTimeout(1500);
 
-            await page.waitForTimeout(1000); 
+            // Adiciona ao carrinho
+            await page.getByRole('button', { name: ' Colocar no Carrinho' }).click();
+            console.log(`   ✅ Jogo ${i + 1} adicionado ao carrinho.`);
+
+            await page.waitForTimeout(1000);
         }
 
-        console.log("🏆 Missão Finalizada! Confira o carrinho de R$ 1.650,00.");
+        console.log('\n🏆 Todos os jogos foram adicionados! Confira o carrinho e finalize a compra.');
 
     } catch (err) {
-        console.error("❌ Erro:", err.message);
-    } 
+        console.error('❌ Erro durante a execução:', err.message);
+    }
+    // Nota: contexto mantido aberto intencionalmente para o usuário finalizar a compra
 }
 
 iniciarBot();
