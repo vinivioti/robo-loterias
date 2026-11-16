@@ -1,27 +1,45 @@
-name: Playwright Tests
+name: CI — Lint & Validação
+
+# Roda em push e PRs na main
 on:
   push:
     branches: [ main, master ]
   pull_request:
     branches: [ main, master ]
+
 jobs:
-  test:
-    timeout-minutes: 60
+  validate:
+    name: Valida sintaxe dos scripts
     runs-on: ubuntu-latest
+
     steps:
-    - uses: actions/checkout@v4
-    - uses: actions/setup-node@v4
-      with:
-        node-version: lts/*
-    - name: Install dependencies
-      run: npm ci
-    - name: Install Playwright Browsers
-      run: npx playwright install --with-deps
-    - name: Run Playwright tests
-      run: npx playwright test
-    - uses: actions/upload-artifact@v4
-      if: ${{ !cancelled() }}
-      with:
-        name: playwright-report
-        path: playwright-report/
-        retention-days: 30
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'   # LTS estável sem deprecation warning
+
+      - name: Instalar dependências
+        run: npm ci
+
+      - name: Verificar sintaxe — gerador-estrategico.js
+        run: node --check gerador-estrategico.js
+
+      - name: Verificar sintaxe — analisador.js
+        run: node --check analisador.js
+
+      - name: Verificar sintaxe — bot-loterias-estatistico.js
+        run: node --check bot-loterias-estatistico.js
+
+      - name: Smoke test — gerador roda sem erros
+        run: |
+          node -e "
+            const g = require('./gerador-estrategico');
+            const jogos = g.gerarJogosPonderados(6, 3, g.carregarScores());
+            if (jogos.length !== 3) throw new Error('Esperava 3 jogos, gerou ' + jogos.length);
+            jogos.forEach(j => { if (!g.jogoEhValido(j)) throw new Error('Jogo inválido: ' + j); });
+            console.log('OK — 3 jogos gerados e validados:', jogos.map(j => '[' + j.join(',') + ']').join(' | '));
+          "
+
+# Nota: os testes E2E do Playwright (bot na Caixa) exigem sessão
+# autenticada e browser real — não são executáveis em CI.
